@@ -73,6 +73,11 @@ python src/app.py</pre>
 
 
 def create_app(private_key_path=DEFAULT_PRIVATE_KEY_PATH):
+    try:
+        from src.test_pages import test_bp
+    except ModuleNotFoundError:
+        from test_pages import test_bp
+
     app = Flask(__name__)
 
     @app.get("/")
@@ -111,6 +116,7 @@ def create_app(private_key_path=DEFAULT_PRIVATE_KEY_PATH):
 
         return jsonify({"data": data})
 
+    app.register_blueprint(test_bp)
     return app
 
 

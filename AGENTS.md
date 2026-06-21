@@ -1,57 +1,53 @@
-# Repository Guidelines
+# AGENTS.md
 
-## Project Structure & Module Organization
+## Project
 
-This repository is a small Python project for a hybrid RSA-AES API security prototype. Keep source code in `src/`. The current core module is `src/security_engine.py`, which contains `HybridSecurityEngine` for AES-GCM payload encryption and RSA-OAEP AES-key encryption.
+Python 3.10+ hybrid RSA-AES API security prototype. AES-GCM encrypts payloads; RSA-OAEP SHA-256 encrypts the AES key.
 
-Use `.codex/PLAN.md` as the local implementation roadmap. Add future Flask routes, request handlers, or API glue under `src/` rather than at the repository root. Put tests in a top-level `tests/` directory when they are added, using names such as `tests/test_security_engine.py`.
+## Layout
 
-## Build, Test, and Development Commands
+- `src/security_engine.py` — `HybridSecurityEngine` (all crypto: keygen, encrypt, decrypt)
+- `src/app.py` — Flask app with `create_app(private_key_path)` factory and endpoint `POST /api/v1/secure-data`
+- `src/generate_keys.py` — RSA key pair generator (writes to `keys/`)
+- `src/test_pages.py` — Blueprint `test_bp` with demo endpoints `/test/success`, `/test/error-400`, `/test/error-500`
+- `tests/test_security_engine.py` — unit tests for crypto round-trips
+- `tests/test_app.py` — Flask endpoint tests using `tmp_path` and `app.test_client()`
+- `tests/test_test_pages.py` — tests for the `test_bp` blueprint endpoints
 
-Create and activate a virtual environment before installing dependencies:
+`keys/` is the canonical key directory. `src/keys/` is stale — do not rely on it.
 
-```bash
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
+## Verified commands
+
+```powershell
+python -m venv .venv; .venv\Scripts\activate; pip install -r requirements.txt
+python -m src.generate_keys      # generate RSA-2048 keys to keys/
+flask --app src.app run --debug  # start dev server
+python -m pytest                 # run all tests
 ```
 
-For a quick dependency install matching the current plan:
+Run everything from repo root so imports resolve.
 
-```bash
-pip install flask cryptography pycryptodome
-```
+## Import quirks
 
-Run modules or scripts from the repository root so imports resolve consistently. When a Flask entry point is added, prefer a documented command such as:
+- `src/app.py` and `src/generate_keys.py` wrap imports in `try/except ModuleNotFoundError` to handle both `python src/app.py` and `flask --app` invocation styles. Keep this pattern if adding new modules.
+- `src/app.py` imports `test_bp` from `src/test_pages.py` **inside** `create_app()`, not at module top level, to avoid circular imports (test routes import `create_app` to call the real endpoint).
+- `src/test_pages.py` route functions lazily import `create_app` with the same `try/except` pattern.
 
-```bash
-flask --app src.app run --debug
-```
+## Test conventions
 
-## Coding Style & Naming Conventions
+- Tests use `pytest` (listed in `requirements.txt`, already configured).
+- `test_app.py` uses `tmp_path` fixture + `create_app(key_path)` to avoid filesystem coupling.
+- `test_security_engine.py` generates ephemeral RSA key pairs in-memory — no keys/ needed.
 
-Use Python 3.10+ and follow PEP 8 with 4-space indentation. Prefer clear, small functions and explicit names. Use `snake_case` for functions and variables, `PascalCase` for classes, and uppercase names for constants. Keep cryptographic behavior direct and readable; avoid broad refactors unless they simplify the current architecture.
+## .gitignore
 
-Do not add comments unless requested. If documentation is needed, prefer short docstrings for public classes or functions.
+- `keys/*.pem` — do not commit generated keys.
+- `AGENTS.md` — this file is intentionally gitignored.
 
-## Testing Guidelines
+## Unused dependency
 
-No test framework is currently configured. When adding tests, use `pytest` and keep test files under `tests/`. Name tests after expected behavior, for example `test_encrypt_payload_returns_base64_nonce_and_ciphertext`.
+`pycryptodome` in `requirements.txt` is not imported anywhere. Only `cryptography` is used for all crypto operations.
 
-Recommended command after tests are added:
+## Style
 
-```bash
-pytest
-```
-
-Prioritize tests for encryption/decryption round trips, invalid keys, malformed Base64 payloads, and Flask endpoint request validation.
-
-## Commit & Pull Request Guidelines
-
-This repository currently has no commit history, so there is no established commit convention. Use concise imperative messages such as `Add hybrid security engine tests` or `Implement secure data endpoint`.
-
-Pull requests should include a short summary, changed files, test results, and any security-sensitive behavior changes. Include sample request/response JSON when API behavior changes.
-
-## Security & Configuration Tips
-
-Never commit private keys, API keys, generated secrets, or local virtual environments. Store runtime secrets in environment variables or ignored local files. Use AES-GCM with unique nonces and RSA-OAEP with SHA-256 as described in the project plan.
+PEP 8, 4-space indent, no comments unless requested. `snake_case` for functions/vars, `PascalCase` for classes.
